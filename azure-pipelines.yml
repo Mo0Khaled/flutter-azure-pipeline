@@ -1,0 +1,213 @@
+name: $(Rev:r)
+trigger:
+  - pipelines/production
+  - pipelines/demo
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  ${{ if eq( variables['Build.SourceBranchName'], 'production') }}:
+    ENTRY_POINT: 'lib/main_prod.dart'
+    FLAVOR_NAME: "Production"
+  ${{ if eq( variables['Build.SourceBranchName'], 'demo') }}:
+    ENTRY_POINT: 'lib/main_demo.dart'
+    FLAVOR_NAME: "Demo"
+
+  PROJECT_DIRECTORY: "."
+  APP_PREFIX: FlutterAzureDemo
+  APP_IDENTIFIER: com.me.example
+  APP_CENTER_APP_SLUG: Company/Demo-App
+  APP_CENTER_SERVER_ENDPOINT: MY_ENDPOINT
+  APP_APPSTORE_ID: 0000000000
+  APP_STORE_TEAM_ID: 000AAAAA00
+  PROVISION_PROFILE_FILE_NAME: app_profile.mobileprovision
+  FLUTTER_VERSION: 3.19.1
+stages:
+  - stage: 'Logs'
+    displayName: logs
+    jobs:
+      - job: Log
+        displayName: prints
+        steps:
+          - script: echo 'This is the build number $(Build.BuildNumber)'
+          - script: echo "$(Build.SourceBranch)"
+          - script: echo "$(Build.SourceBranchName)"
+
+          - script: echo "app prefix is = $(APP_PREFIX)"
+          - script: echo "PROJECT_DIRECTORY is = $(PROJECT_DIRECTORY)"
+          - script: echo "APP_IDENTIFIER is = $(APP_IDENTIFIER)"
+
+          - script: echo "ENTRY_POINT is = $(ENTRY_POINT)"
+          - script: echo "FLAVOR_NAME is = $(FLAVOR_NAME)"
+          - script: echo "FLUTTER_VERSION is = $(FLUTTER_VERSION)"
+  - stage: 'Build_Android'
+    displayName: Build_Android_Version
+
+    jobs:
+      - job: Build
+        displayName: BuildingAndroid
+        steps:
+          - task: FlutterInstall@0
+            displayName: 'Flutter installing'
+            inputs:
+              mode: 'auto'
+              channel: 'stable'
+              version: 'custom'
+              customVersion: "$(FLUTTER_VERSION)"
+
+          - task: JavaToolInstaller@0
+            inputs:
+              versionSpec: "11"
+              jdkArchitectureOption: "x64"
+              jdkSourceOption: "PreInstalled"
+
+          - bash: |
+              flutter pub get
+              ##flutter build apk --release --flavor $(FLAVOR_NAME) --target=$(ENTRY_POINT)
+          - task: FlutterBuild@0
+            inputs:
+              target: "apk"
+              projectDirectory: "$(PROJECT_DIRECTORY)"
+              entryPoint: "$(ENTRY_POINT)"
+              iosCodesign: false
+              buildNumber: "$(Build.BuildNumber)"
+
+          # Note: The following tasks are for demonstration purposes only.
+          # You should first create a keystore file and upload it to your secure files.
+          # Then, you should build an AAB not an APK.
+          - task: AndroidSigning@3
+            inputs:
+              apkFiles: '**/release/*.aab'
+              apksignerKeystoreFile: android/app/upload-keystore.jks
+              apksignerKeystorePassword: $(keystore-password)
+              apksignerKeystoreAlias: $(key-alias)
+              apksignerKeyPassword: $(key-password)
+              apksignerArguments: --out $(Build.ArtifactStagingDirectory)/app.release.signed.aab --min-sdk-version 28
+
+          - task: CopyFiles@2
+            inputs:
+              targetFolder: '$(build.artifactStagingDirectory)'
+              cleanTargetFolder: true
+              overWrite: true
+              contents: '**/*.apk'
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+              ArtifactName: dropAPK
+
+          - task: GooglePlayRelease@4
+            inputs:
+              serviceConnection: 'google_console_connection'
+              applicationId: "$(APP_IDENTIFIER)"
+              action: 'SingleBundle'
+              bundleFile: '$(Pipeline.Workspace)/dropAPK/app.release.signed.aab'
+              track: 'alpha'
+              releaseName: 'app-$(Build.BuildId)'
+
+          - task: AppCenterDistribute@3
+            inputs:
+              serverEndpoint: '$(APP_CENTER_SERVER_ENDPOINT)'
+              appSlug: '$(APP_CENTER_APP_SLUG)'
+              appFile: '$(build.artifactStagingDirectory)/$(APP_PREFIX)/build/app/outputs/flutter-apk/app-release.apk'
+              symbolsOption: 'Android'
+              releaseNotesInput: 'Type Any'
+              destinationType: 'groups'
+
+  - stage: Build
+    displayName: "iOS Build Stage"
+    dependsOn: []
+    jobs:
+      - job: BuildIOS
+        displayName: BuildingIOS
+        timeoutInMinutes: 160
+        pool:
+          vmImage: 'macOS-13'
+          variables:
+          scheme: 'Runner'
+          sdk: 'iphoneos'
+          configuration: 'Release'
+
+        steps:
+          - task: InstallAppleCertificate@2
+            displayName: 'Install Apple Certificate'
+            inputs:
+              certSecureFile: 'cert.p12'
+              certPwd: $(P12_PASSWORD)
+
+          - task: InstallAppleProvisioningProfile@1
+            displayName: 'Install Apple Provisioning Profile'
+            inputs:
+              provisioningProfileLocation: 'secureFiles'
+              provProfileSecureFile: '$(PROVISION_PROFILE_FILE_NAME)'
+
+          - task: FlutterInstall@0
+            displayName: 'Flutter installing'
+            inputs:
+              mode: 'auto'
+              channel: 'stable'
+              version: 'custom'
+              customVersion: "$(FLUTTER_VERSION)"
+
+          - task: FlutterBuild@0
+            displayName: 'Flutter build'
+            inputs:
+              target: 'ipa'
+              iosCodesign: false
+              projectDirectory: "$(PROJECT_DIRECTORY)"
+              entryPoint: "$(ENTRY_POINT)"
+              buildNumber: "$(Build.BuildNumber)"
+              extraArgs: --no-codesign --no-tree-shake-icons
+
+          - bash: |
+              # Fixing permissions issues, otherwise xcode build will fail with a failed 'PhaseScriptExecution Copy ...' command
+              chmod -R +x $(System.DefaultWorkingDirectory)
+
+          - task: Xcode@5
+            displayName: '[Xcode] Archive and sign'
+            inputs:
+              actions: 'archive'
+              sdk: 'iphoneos'
+              configuration: 'Release'
+              scheme: 'Runner'
+              xcWorkspacePath: '$(APP_PREFIX)/ios/Runner.xcworkspace'
+              signingIdentity: $(APPLE_CERTIFICATE_SIGNING_IDENTITY)
+              provisioningProfileUuid: $(APPLE_PROV_PROFILE_UUID)
+              packageApp: true
+              signingOption: 'manual'
+              exportOptions: 'plist'
+              exportOptionsPlist: '$(APP_PREFIX)/ios/Runner/release.plist'
+              exportMethod: 'app-store'
+              teamId: '$(APP_STORE_TEAM_ID)'
+              exportTeamId: '$(APP_STORE_TEAM_ID)'
+              archivePath: 'ios/archive/Runner.xcarchive'
+              exportPath: 'output/iphoneos/Release'
+
+          - task: CopyFiles@2
+            displayName: 'Copy .ipa package'
+            inputs:
+              targetFolder: '$(Build.ArtifactStagingDirectory)'
+              cleanTargetFolder: true
+              contents: |
+                output/iphoneos/Release/**
+                CHANGELOG.md
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish .ipa package'
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)
+              artifactName: ipa
+
+          - task: AppStoreRelease@1
+            displayName: 'TestFlight Release'
+            inputs:
+              serviceEndpoint: 'APIKEY' # The service connection name for App Store Connect create it yourself.
+              releaseTrack: 'TestFlight'
+              appIdentifier: "$(APP_IDENTIFIER)"
+              appType: 'iOS'
+              releaseNotes: 'Release notes for this build'
+              shouldSkipWaitingForProcessing: true
+              shouldSkipSubmission: true
+              appSpecificId: '$(APP_APPSTORE_ID)'
+              teamId: '$(APP_STORE_TEAM_ID)'
+              teamName: 'YOUR_TEAM_NAME' # The name of your team in App Store Connect.
