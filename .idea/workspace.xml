@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="462bb766-4a8d-4559-917c-4b08ff7e2b87" name="Changes" comment="" />
+    <list default="true" id="462bb766-4a8d-4559-917c-4b08ff7e2b87" name="Changes" comment="first phase of the flutter azure pipeline">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -29,9 +31,11 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.cidr.known.project.marker": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "dart.analysis.tool.window.visible": "false",
@@ -79,6 +83,19 @@
       <option name="presentableId" value="Default" />
       <updated>1712346586042</updated>
     </task>
+    <task id="LOCAL-00001" summary="first phase of the flutter azure pipeline">
+      <option name="closed" value="true" />
+      <created>1712363413468</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1712363413468</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="first phase of the flutter azure pipeline" />
+    <option name="LAST_COMMIT_MESSAGE" value="first phase of the flutter azure pipeline" />
   </component>
 </project>
