@@ -153,11 +153,10 @@ stages:
             displayName: 'Flutter build'
             inputs:
               target: 'ipa'
-              iosCodesign: false
               projectDirectory: "$(PROJECT_DIRECTORY)"
               entryPoint: "$(ENTRY_POINT)"
               buildNumber: "$(Build.BuildNumber)"
-              extraArgs: --no-codesign --no-tree-shake-icons
+              extraArgs: --no-codesign
 
           - bash: |
               # Fixing permissions issues, otherwise xcode build will fail with a failed 'PhaseScriptExecution Copy ...' command
